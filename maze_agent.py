@@ -3,77 +3,114 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib as mpl
 from skimage.segmentation import flood_fill
-from skimage.io import imread
-from skimage.color import rgb2gray
-from skimage.transform import resize
-from skimage.filters import threshold_local
 
-def box(height, width):
-    arr = np.zeros((height, width), dtype=np.uint8)
-    # walls top, bottom, left, right = 1
-    arr[0] = arr[-1] = arr[..., 0] = arr[..., -1] = 1
-    # start and end locations = 2
-    arr[0, 1] = arr[-1, -2] = 2
-    return arr
+class MazeGenerator:
+    """A class for generating and visualising mazes."""
 
-b = box(6, 6)
-b
+    def __init__(self, height, width):
+        """
+        Initialize the maze generator with height and width.
 
-palette = mpl.cm.inferno.resampled(3).colors
-labels = ["0: unfilled", "1: wall", "2: passage"]
-
-
-def show(arr):
-    plt.figure(figsize=(9, 9))
-    im = plt.imshow(palette[arr])
-    # create a legend on the side
-    patches = [mpatches.Patch(color=c, label=l) for c, l in zip(palette, labels)]
-    plt.legend(handles=patches, bbox_to_anchor=(1.1, 1), loc=2, borderaxespad=0)
-    plt.show()
-
-show(b)
-
-np.where(b == 2)
-
-start = tuple(coord[0] for coord in np.where(b == 2))
-start
-
-np.where(b == 0)
-np.swapaxes(np.where(b == 0), 0, 1)
-
-a = box(30, 30)
-show(a)
-
-# mask for cells above, below, left and right
-neighbours = np.array([
-    [0, 1, 0],
-    [1, 0, 1],
-    [0, 1, 0]], dtype=np.uint8)
+        Args:
+            height (int): The height of the maze grid.
+            width (int): The width of the maze grid.
+        """
+        self.height = height
+        self.width = width
+        self.maze = None
+        self.palette = mpl.cm.inferno.resampled(3).colors
+        self.labels = ["0: unfilled", "1: wall", "2: passage"]
 
 
-def maze3(arr):
-    unfilled = np.swapaxes(np.where(arr == 0), 0, 1)
-    np.random.shuffle(unfilled)
+    def create_empty_maze(self):
+        """
+        Create an empty maze with walls and start/end passages.
 
-    start = tuple(coord[0] for coord in np.where(arr == 2))
-    arr = np.copy(arr)
-    arr[arr == 2] = 0
+        Returns:
+            np.ndarray: A grid representing the initial maze.
+        """
+        maze = np.zeros((self.height, self.width), dtype=np.uint8)
+        # Define walls: top, bottom, left and right
+        maze[0] = maze[-1] = maze[:, 0] = maze[:, -1] = 1
+        # Define start(top-left) and end (bottom-right) passages
+        maze[0, 1] = maze[-1, -2] = 2
+        return maze
+    
 
-    for lc in unfilled:
-        lc = tuple(lc)
+    def generate_mask(self):
+        """
+        Generate a mask for neighbor cells above, below, left, and right.
+
+        Returns:
+            np.ndarray: A mask used for checking neighbor cells.
+        """
+        return np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]], dtype=np.uint8)
+    
+
+    def generate_maze(self, maze):
+        """
+        Generate a solvable maze using randomized filling and flood-fill for validation.
+
+        Args:
+            maze (np.ndarray): The initial maze grid.
+
+        Returns:
+            np.ndarray: The completed maze with paths carved out.
+        """
+        unfilled_cells = np.swapaxes(np.where(maze == 0), 0, 1)
+        np.random.shuffle(unfilled_cells)
+
+        start = tuple(coord[0] for coord in np.where(maze == 2))
+        maze = np.copy(maze)
+        maze[maze == 2] = 0
+
+        neighbours_mask = self.generate_mask()
+
+        for cell in unfilled_cells:
+            y, x = tuple(cell)
+
+            # Prevent creating dead-end walls
+            if np.sum(neighbours_mask * maze[y - 1:y + 2, x - 1: x + 2]) > 2:
+                continue
+
+            maze[y,x] = 1
+
+            # Check connectivity using flood-fill
+            test_maze = flood_fill(maze, start, 1, connectivity=1)
+            if np.any(test_maze == 0):
+                maze[y, x] = 0
+
+        # Mark unfilled cells as passages
+        maze[maze == 0] = 2
+        return maze
         
-        y, x = lc
-        # protect dead-ends from becoming walls
-        if np.sum(neighbours * arr[y-1:y+2, x-1:x+2]) > 2:
-            continue
-        
-        arr[lc] = 1
-        t = flood_fill(arr, start, 1, connectivity=1)
-        if np.any(t == 0):
-            arr[lc] = 0
 
-    arr[arr == 0] = 2
-    return arr
+    def visualise_maze(self, maze):
+        """
+        visualise the maze using Matplotlib.
 
-m = maze3(a)
-show(m)
+        Args:
+            maze (np.ndarray): The maze grid to visualise.
+        """
+        plt.figure(figsize=(9, 9))
+        image = plt.imshow(self.palette[maze])
+
+        # Create a legend
+        patches = [
+            mpatches.Patch(color=color, label=label)
+            for color, label in zip(self.palette, self.labels)
+        ]
+        plt.legend(handles=patches, bbox_to_anchor=(1.1, 1), loc=2, borderaxespad = 0)
+        plt.show()
+
+    def generate_and_visualise_maze(self):
+        """
+        Generate and visualise a maze.
+        """
+        initial_maze = self.create_empty_maze()
+        self.maze = self.generate_maze(initial_maze)
+        self.visualise_maze(self.maze)
+
+if __name__ == "__main__":
+    generator = MazeGenerator(height=30, width=30)
+    generator.generate_and_visualise_maze()
