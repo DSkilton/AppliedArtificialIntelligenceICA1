@@ -144,11 +144,17 @@ class MazeApp:
         self.openings_entry = tk.Entry(root)
         self.openings_entry.grid(row=2, column=1, padx=10, pady=5)
 
+        tk.Label(root, text="Select Algorithm: ").grid(row=3, column=0, padx=10, pady=5)
+        self.algorithm_var = tk.StringVar(root)
+        self.algorithm_var.set("A*")
+        self.algorithm_menu = tk.OptionMenu(root, self.algorithm_var, "A*", "Q-Learning", "DQN")
+        self.algorithm_menu.grid(row=3, column=1, padx=10, pady=5)
+
         # Create a button to generate the maze
         self.generate_button = tk.Button(
             root, text="Generate Maze", command=self.generate_maze
         )
-        self.generate_button.grid(row=3, column=0, columnspan=2, pady=10)
+        self.generate_button.grid(row=4, column=0, columnspan=2, pady=10)
 
 
     def generate_maze(self):
