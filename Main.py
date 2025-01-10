@@ -60,9 +60,16 @@ def main():
     )
 
     # Visualize BFS perimeter
-    perimeter_cells = solver.perimeter_bfs()
-    logging.info(f"Perimeter cells visited: {perimeter_cells}")
-    visualizer.visualise_perimeter_cells(perimeter_cells)
+    perimeter_visited, boundary_openings = solver.perimeter_bfs()
+
+    logging.info(f"Visited set: {perimeter_visited}")
+    logging.info(f"Openings: {boundary_openings}")
+
+    # If you want to visualize *only* perimeter-connected cells:
+    visualizer.visualise_perimeter_cells(perimeter_visited)
+
+    # If you also want to highlight only the boundary-edge openings:
+    visualizer.visualise_perimeter_cells(boundary_openings)
 
 if __name__ == "__main__":
 

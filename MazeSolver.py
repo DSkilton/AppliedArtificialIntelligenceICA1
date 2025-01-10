@@ -180,6 +180,7 @@ class MazeSolver:
         """
         queue = deque()
         visited = set()
+        openings = []
 
         # Gather perimeter openings
         for x in range(self.width):
@@ -200,6 +201,9 @@ class MazeSolver:
                 continue
             visited.add(cell)
 
+            if(cell[0] in (0, self.height-1) or cell[1] in (0, self.width-1)):
+                openings.append(cell)
+
             # neighbors (4 in 2D (left, right, up, down))
             for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
                 ny, nx = cell[0]+dy, cell[1]+dx
@@ -207,4 +211,4 @@ class MazeSolver:
                     if self.env.is_valid_state((ny,nx)) and (ny,nx) not in visited:
                         queue.append((ny,nx))
 
-        return visited
+        return visited, openings

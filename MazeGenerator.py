@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from skimage.segmentation import flood_fill
 
@@ -10,8 +11,36 @@ class MazeGenerator:
     def create_empty_maze(self):
         maze = np.zeros((self.height, self.width), dtype=np.uint8)
         maze[0] = maze[-1] = maze[:, 0] = maze[:, -1] = 1
+
+        # Always have top-left and bottom-right
         maze[0, 1] = 2
         maze[-1, -2] = 2
+        total_openings = 2
+
+        # Add more openings up to self.openings
+        while total_openings < self.openings:
+            side = random.choice(["top","bottom","left","right"])
+            if side == "top":
+                x = random.randint(1, self.width-2)
+                if maze[0, x] == 1:
+                    maze[0, x] = 2
+                    total_openings += 1
+            elif side == "bottom":
+                x = random.randint(1, self.width-2)
+                if maze[self.height-1, x] == 1:
+                    maze[self.height-1, x] = 2
+                    total_openings += 1
+            elif side == "left":
+                y = random.randint(1, self.height-2)
+                if maze[y, 0] == 1:
+                    maze[y, 0] = 2
+                    total_openings += 1
+            elif side == "right":
+                y = random.randint(1, self.height-2)
+                if maze[y, self.width-1] == 1:
+                    maze[y, self.width-1] = 2
+                    total_openings += 1
+
         return maze
 
     def generate_mask(self):
