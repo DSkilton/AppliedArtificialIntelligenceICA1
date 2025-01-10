@@ -1,5 +1,9 @@
-import numpy as np
 from queue import PriorityQueue
+from collections import deque
+import numpy as np
+from Persistence import QTablePersistence
+
+
 
 class MazeSolver:
     def __init__(self, env):
@@ -48,7 +52,7 @@ class MazeSolver:
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     # ------------ Q-Learning ------------ #
-    def solve_qlearning(self, episodes=500, log_interval=0):
+    def solve_qlearning(self, episodes=500, log_interval=0, save_filename=None):
         """
         log_interval: if > 0, print logs every 'log_interval' episodes
         """
@@ -100,10 +104,13 @@ class MazeSolver:
                 recent_avg = np.mean(all_rewards[-log_interval:])
                 print(f"[Q-Learning] Ep {ep+1}, AvgReward(last {log_interval})={recent_avg:.2f}")
 
+            if save_filename:
+                QTablePersistence.save(q_table, save_filename)
+
         return all_rewards, all_steps, q_table
 
     # ------------ SARSA ------------ #
-    def solve_sarsa(self, episodes=500, log_interval=0):
+    def solve_sarsa(self, episodes=500, log_interval=0, save_filename=None):
         """
         log_interval: if > 0, print logs every 'log_interval' episodes
         """
@@ -161,14 +168,16 @@ class MazeSolver:
                 recent_avg = np.mean(all_rewards[-log_interval:])
                 print(f"[SARSA] Ep {ep+1}, AvgReward(last {log_interval})={recent_avg:.2f}")
 
+            if save_filename:
+                QTablePersistence.save(q_table, save_filename)
+
         return all_rewards, all_steps, q_table
 
-    # ------------ (Optional) Perimeter BFS Example ------------ #
+    # ------------ Perimeter BFS Example ------------ #
     def perimeter_bfs(self):
         """
         Simple BFS from all perimeter openings to see how many cells it can reach.
         """
-        from collections import deque
         queue = deque()
         visited = set()
 
@@ -178,6 +187,7 @@ class MazeSolver:
                 queue.append((0, x))
             if self.env.is_valid_state((self.height-1, x)):
                 queue.append((self.height-1, x))
+
         for y in range(self.height):
             if self.env.is_valid_state((y, 0)):
                 queue.append((y, 0))
@@ -190,7 +200,7 @@ class MazeSolver:
                 continue
             visited.add(cell)
 
-            # neighbors
+            # neighbors (4 in 2D (left, right, up, down))
             for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
                 ny, nx = cell[0]+dy, cell[1]+dx
                 if 0 <= ny < self.height and 0 <= nx < self.width:

@@ -84,8 +84,8 @@ class MazeVisualizer:
         plt.ioff()
         plt.show()
 
-    # Optional if you want to visualize BFS perimeter cells
-    def visualize_perimeter_cells(self, perimeter_cells):
+    # If you want to visualize BFS perimeter cells
+    def visualise_perimeter_cells(self, perimeter_cells):
         """
         Color any perimeter BFS visited cells in '3' and show them.
         """
