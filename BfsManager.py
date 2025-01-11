@@ -18,7 +18,7 @@ class BfsManager:
         self.width = env.width
 
         # For BFS-from-goal (reverse BFS)
-        self.frontier_goal = deque()    # frontier for BFS from goal
+        self.frontier = deque()    # frontier for BFS from goal
         self.dist_goal = {}             # (y,x) -> distance to goal
         self.goal_inited = False
 
@@ -26,6 +26,8 @@ class BfsManager:
         self.frontier_boundary = deque()
         self.visited_boundary = {}          # (y,x) -> distance from boundary
         self.boundary_inited = False
+
+        self.visited = {}
 
     def init_bfs_from_boundary(self):
         """
@@ -54,7 +56,7 @@ class BfsManager:
 
         # enqueue them
         for cell in boundary_cells:
-            self.visited_boundary.append(cell)
+            self.visited_boundary[cell] = 0
             self.dist_goal[cell] = 0
 
         BfsManager.logger.info(f"[BfsManager] init_bfs_from_boundary: Enqueued {len(boundary_cells)} boundary cells.")
@@ -63,7 +65,7 @@ class BfsManager:
         """
         Clears BFS data and starts BFS from the goal cell i.e. reverse BFS
         """
-        self.frontier_goal.clear()
+        self.frontier.clear()
         self.dist_goal.clear()
         self.goal_inited = True
 
@@ -72,7 +74,7 @@ class BfsManager:
             BfsManager.logger.warning("[BfsManager] init_bfs_from_goal: No valid goal found. BFS won't do anything.")
             return
 
-        self.frontier_goal.append(goal)
+        self.frontier.append(goal)
         self.dist_goal[goal] = 0
 
         BfsManager.logger.info(f"[BfsManager] init_bfs_from_goal: Enqueued goal cell {goal} with distance=0")
@@ -85,8 +87,8 @@ class BfsManager:
         expansions = 0
         directions = [(-1,0),(1,0),(0,-1),(0,1)]
 
-        while expansions < batch_size and self.frontier_goal:
-            cell = self.frontier_goal.popleft()
+        while expansions < batch_size and self.frontier:
+            cell = self.frontier.popleft()
             current_dist = self.dist_goal[cell]
 
             for (dy, dx) in directions:
@@ -94,7 +96,7 @@ class BfsManager:
                 if 0 <= ny < self.height and 0 <= nx < self.width:
                     if self.env.is_valid_state((ny, nx)) and (ny, nx) not in self.dist_goal:
                         self.dist_goal[(ny, nx)] = current_dist + 1
-                        self.frontier_goal.append((ny, nx))
+                        self.frontier.append((ny, nx))
             expansions += 1
         return expansions
 
@@ -131,7 +133,7 @@ class BfsManager:
     
     def is_finished_goal(self):
         """Returns True if BFS frontier for the goal-based BFS is empty."""
-        return (not self.frontier_goal) and self.goal_inited
+        return (not self.frontier) and self.goal_inited
 
     def min_distance(self):
         if not self.dist_goal:
@@ -149,7 +151,7 @@ class BfsManager:
         that reflect BFS knowledge. Possibly dist is from the goal, 
         so shorter dist => better Q-value. 
         """
-        for (y, x), dist in self.dist_goal.items():
+        for (x, y), dist in self.dist_goal.items():
             for a in range(q_table.shape[2]):
                 old_val = q_table[y, x, a]
                 new_val = max(old_val, 10 - dist)
@@ -160,3 +162,25 @@ class BfsManager:
 
     def get_visitedBoundary_map(self):
         return self.visited_boundary
+
+    def expand_next_batch(self, batch_size=10):
+        """
+        Process up to 'batch_size' BFS expansions.
+        Return how many expansions actually processed (could be < batch_size if BFS done).
+        """
+        expansions = 0
+        directions = [(-1,0),(1,0),(0,-1),(0,1)]
+
+        while expansions < batch_size and self.frontier:
+            cell = self.frontier.popleft()
+            dist = self.visited[cell]
+
+            for (dy, dx) in directions:
+                ny, nx = cell[0] + dy, cell[1] + dx
+                if 0 <= ny < self.height and 0 <= nx < self.width:
+                    if self.env.is_valid_state((ny, nx)) and (ny, nx) not in self.visited:
+                        self.visited[(ny, nx)] = dist + 1
+                        self.frontier.append((ny, nx))
+            expansions += 1
+
+        return expansions

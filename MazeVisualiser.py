@@ -1,14 +1,20 @@
+import datetime, os, logging
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib as mpl
 import numpy as np
 
 class MazeVisualizer:
+
     def __init__(self, maze):
+        self.logger = logging.getLogger(__name__)
+
         self.maze = maze
         self.height, self.width = maze.shape
-        import matplotlib as mpl
-        self.palette = mpl.cm.inferno.resampled(4).colors
-        self.labels = ["0: unfilled", "1: wall", "2: passage", "3: agent/solution"]
+        self.palette = mpl.cm.inferno.resampled(5).colors
+
+        # Label them: 0=unfilled,1=wall,2=passage,3=agent,4=bfs
+        self.labels = ["0: unfilled", "1: wall", "2: passage", "3: agent/solution", "4: bfs"]
 
     def show_maze(self, title="Generated Maze"):
         plt.figure(figsize=(7, 7))
@@ -22,6 +28,7 @@ class MazeVisualizer:
         plt.show()
 
     def visualize_path(self, came_from, start, goal):
+        self.logger.info(f"[visualize_path] -> came_from: {came_from}")
         maze_copy = np.copy(self.maze)
         current = goal
         while current and current != start:
@@ -33,6 +40,13 @@ class MazeVisualizer:
         plt.show()
 
     def plot_rewards_and_steps(self, rewards, steps, algorithm_name):
+        # create timestamped directory
+        self.logger.info(f"[plot_rewards_and_steps] -> algorithm_name: {algorithm_name}, rewards size: {len(rewards)}, steps size: {len(steps)}")
+
+        now_str = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        out_dir = os.path.join(".", now_str)
+        os.makedirs(out_dir, exist_ok=True)
+    
         plt.figure(figsize=(7, 4))
         plt.plot(rewards, label="Rewards")
         plt.title(f"{algorithm_name}: Rewards per Episode")
@@ -41,6 +55,8 @@ class MazeVisualizer:
         plt.legend()
         plt.grid(True)
         plt.show()
+        out_file1 = os.path.join(out_dir, f"{algorithm_name}_rewards.png")
+        plt.savefig(out_file1, dpi=150)
 
         plt.figure(figsize=(7, 4))
         plt.plot(steps, label="Steps")
@@ -50,6 +66,8 @@ class MazeVisualizer:
         plt.legend()
         plt.grid(True)
         plt.show()
+        out_file1 = os.path.join(out_dir, f"{algorithm_name}_rewards.png")
+        plt.savefig(out_file1, dpi=150)
 
     def visualize_agent_run(self, q_table, start, goal, get_next_state_func):
         maze_copy = np.copy(self.maze)
@@ -96,4 +114,65 @@ class MazeVisualizer:
         plt.figure(figsize=(7,7))
         plt.imshow(self.palette[maze_copy])
         plt.title("Perimeter BFS Visited Cells")
+        plt.show()
+
+    @staticmethod
+    def visualize_agent_run_multiple_openings(q_table, openings, env, visualizer):
+        """
+        Using the final Q-table, run the agent from each 'opening' to the environment's goal,
+        calling 'visualizer.visualize_agent_run' for each route.
+        """
+        _, goal = env.get_start_and_goal()
+        if goal is None:
+            print("[visualize_agent_run_multiple_openings] No valid goal in environment.")
+            return
+
+        for open_cell in openings:
+            print(f"** Visualizing agent from {open_cell} to {goal} **")
+            visualizer.visualize_agent_run(
+                q_table,
+                open_cell,
+                goal,
+                lambda s,a: env.step(s,a)[0]
+            )
+
+    @staticmethod
+    def visualize_bfs_paths_from_openings(solver, visualizer, openings):
+        """
+        For each opening in 'openings', run BFS from that opening to the real goal,
+        and visualize the resulting path if found.
+        """
+        env = solver.env
+        _, goal = env.get_start_and_goal()
+        if goal is None:
+            print("[visualize_bfs_paths_from_openings] No valid goal found in MazeEnvironment.")
+            return
+
+        print(f"[visualize_bfs_paths_from_openings] We have {len(openings)} openings to try.")
+        for open_cell in openings:
+            print(f"--- BFS from opening {open_cell} to {goal} ---")
+            came_from = solver.solve_bfs_custom(open_cell, goal)  
+            if came_from is not None:
+                # Visualize the path from open_cell to goal
+                visualizer.visualize_path(came_from, open_cell, goal)
+            else:
+                print(f"No BFS path from {open_cell} to {goal}")
+
+    def visualise_bfs_and_agent_path(self, bfs_visited, agent_states):
+        """
+        BFS visited => color=4, agent path => color=3
+        """
+        maze_copy = np.copy(self.maze)
+
+        # Mark BFS visited
+        for (x, y) in bfs_visited:
+            maze_copy[y, x] = 4
+
+        # Mark agent path
+        for (x, y) in agent_states:
+            maze_copy[y, x] = 3
+
+        plt.figure(figsize=(7,7))
+        plt.imshow(self.palette[maze_copy])
+        plt.title("BFS visited (color=4) + Agent path (color=3)")
         plt.show()

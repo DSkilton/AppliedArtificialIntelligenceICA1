@@ -3,8 +3,6 @@ from collections import deque
 import numpy as np
 from Persistence import QTablePersistence
 
-
-
 class MazeSolver:
     def __init__(self, env):
         self.env = env
@@ -212,3 +210,39 @@ class MazeSolver:
                         queue.append((ny,nx))
 
         return visited, openings
+
+    def solve_bfs_custom(self, start, goal):
+        """
+        Simple BFS from 'start' to 'goal' in the current maze (no partial expansions).
+        Returns 'came_from' dict if a path is found, or None if unreachable.
+        """
+        from collections import deque
+
+        if not start or not goal:
+            print("[solve_bfs_custom] Invalid start or goal.")
+            return None
+
+        queue = deque()
+        queue.append(start)
+        came_from = {start: None}  # track how we reached each cell
+        found_goal = False
+
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+        while queue:
+            current = queue.popleft()
+            if current == goal:
+                found_goal = True
+                break
+
+            for dy, dx in directions:
+                ny, nx = current[0] + dy, current[1] + dx
+                if 0 <= ny < self.height and 0 <= nx < self.width:
+                    if self.env.is_valid_state((ny, nx)) and (ny, nx) not in came_from:
+                        came_from[(ny, nx)] = current
+                        queue.append((ny, nx))
+
+        if found_goal:
+            return came_from
+        else:
+            return None

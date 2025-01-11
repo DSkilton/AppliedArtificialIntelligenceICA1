@@ -4,7 +4,10 @@ from MazeGenerator import MazeGenerator
 from MazeEnvironment import MazeEnvironment
 from MazeSolver import MazeSolver
 from MazeVisualiser import MazeVisualizer
+
 from Persistence import QTablePersistence
+
+from BfsManagerReverse import BFSManagerReverse
 from BfsManager import BfsManager
 from BfsRlManager import BfandRlMananger
 from Constants import *
@@ -17,15 +20,30 @@ def main():
     bfs_mgr = BfsManager(env)
     q_table = np.zeros((env.height, env.width, 4), dtype=float)
 
-    manager = BfandRlMananger()
-    final_q, expansions_log, reward_log, step_log = manager.run_bfs_and_rl(env, bfs_mgr, q_table, episodes=100, iters_per_episode=5, batch_size=10)
+    manager = BfandRlMananger(env, bfs_mgr, q_table)
+    final_q, expansions_log, reward_log, step_log = manager.run_bfs_and_rl(
+        episodes=1000,
+        max_steps_per_episode=500,
+        batch_size=10
+    )
+
+    logging.info("[Main] BFS+RL synergy run complete.")
+    logging.info(f"Expansions log: {expansions_log}")
+    logging.info(f"Episode Rewards: {reward_log}")
+    logging.info(f"Episode Steps: {step_log}")
 
     # MazeSolver, MazeVisualizer
     solver = MazeSolver(env)
     visualizer = MazeVisualizer(maze_array)
 
+    start, goal = env.get_start_and_goal()
+    if start and goal:
+        visualizer.visualize_agent_run(final_q, start, goal, lambda s,a: env.step(s,a)[0])
+    else:
+        logging.info("No valid start/goal to visualize final path.")
+
     # Load or create Q-learning / SARSA tables
-    q_learning_table, sarsa_table = load_qtables(env, generator)
+    # q_learning_table, sarsa_table = load_qtables(env, generator)
 
     # Solve Maze with A*
     run_astar_and_visualize(env, solver, visualizer)
@@ -38,6 +56,35 @@ def main():
 
     # Visualize BFS perimeter
     visualize_boundary_bfs(solver, visualizer)
+
+    perimeter_visited, boundary_openings = solver.perimeter_bfs()
+    MazeVisualizer.visualize_bfs_paths_from_openings(solver, visualizer, boundary_openings)
+    MazeVisualizer.visualize_agent_run_multiple_openings(final_q, boundary_openings, env, visualizer)    
+
+    start, _ = env.get_start_and_goal()
+    state = start
+
+    agent_states = []
+    steps = 0
+    done = False
+    max_steps = 500
+    while not done and steps < max_steps:
+        agent_states.append(state)
+        # e-greedy using final_q:
+        if np.random.rand() < 0.1:
+            action = np.random.randint(4)
+        else:
+            action = np.argmax(final_q[state[0], state[1]])
+        next_state, r, done = env.step(state, action)
+        state = next_state
+        steps += 1
+
+    # BFS visited cells
+    bfs_visited = list(bfs_mgr.dist_goal.keys())  # all cells BFS discovered
+
+    # 6) Visualize BFS visited + agent path
+    visualizer = MazeVisualizer(maze_array)
+    visualizer.visualise_bfs_and_agent_path(bfs_visited, agent_states)
 
 def create_maze_and_env(height=20, width=20, openings=5):
     """
@@ -61,8 +108,8 @@ def run_bfs_rl_manager(env):
         env,
         bfs_mgr,
         q_table,
-        episodes=100,
-        iters_per_episode=5,
+        episodes=1000,
+        iters_per_episode=1000,
         batch_size=10
     )
 
@@ -105,9 +152,9 @@ def run_qlearning_and_visualize(env, solver, visualizer):
     """
     Solve using Q-learning, log results, and visualize the agent.
     """
-    print("\n--- Starting Q-Learning (10,000 episodes) ---")
+    print("\n--- Starting Q-Learning (100,000 episodes) ---")
     q_rewards, q_steps, q_table = solver.solve_qlearning(
-        episodes=10000, log_interval=500, save_filename=Q_LEARNING_FILE
+        episodes=100000, log_interval=10000, save_filename=Q_LEARNING_FILE
     )
     visualizer.plot_rewards_and_steps(q_rewards, q_steps, Q_LEARNING)
 
@@ -123,9 +170,9 @@ def run_sarsa_and_visualize(env, solver, visualizer):
     """
     Solve using SARSA, log results, and visualize.
     """
-    print("\n--- Starting SARSA (10,000 episodes) ---")
+    print("\n--- Starting SARSA (100,000 episodes) ---")
     sarsa_rewards, sarsa_steps, sarsa_table = solver.solve_sarsa(
-        episodes=10000, log_interval=500, save_filename=SARSA_FILE
+        episodes=100000, log_interval=10000, save_filename=SARSA_FILE
     )
     visualizer.plot_rewards_and_steps(sarsa_rewards, sarsa_steps, SARSA)
 

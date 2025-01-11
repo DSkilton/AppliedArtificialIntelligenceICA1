@@ -1,89 +1,123 @@
 import logging
+import random
 import numpy as np
 import BfsManager as BfsManager
 from AlgorithmHelpers import AlgorithmHelpers
 
 class BfandRlMananger:
 
-    logger = logging.getLogger(__name__)
-
-    def run_bfs_and_rl(self, env, bfs_mgr, q_table, episodes=50, iters_per_episode=5, batch_size=10):
+    def __init__(self, env, bfs_mgr, q_table, alpha=0.1, gamma_rl=0.9, epsilon=0.1):
         """
-        Time-sliced BFS + RL approach.
-        - BFS expansions happen partially each iteration
-        - Then BFS-based Q-initialization
-        - Then RL does a partial episode
-
         env: MazeEnvironment
-        bfs_mgr: BFSManagerReverse (with dist_goal)
+        bfs_mgr: BFSManagerReverse
         q_table: np.ndarray shape (height, width, 4)
-        episodes: how many RL episodes we run
-        iters_per_episode: how many BFS+RL sub-iterations per episode
-        batch_size: BFS expansions per iteration
-
-        We'll store logs in lists so we can observe the progress.
         """
-        alpha = 0.1
-        gamma_rl = 0.9  # RL discount
-        epsilon = 0.1
+        self.logger = logging.getLogger(__name__)
+        self.env = env
+        self.bfs_mgr = bfs_mgr
+        self.q_table = q_table
 
-        # BFS init from the goal
-        bfs_mgr.init_bfs_from_goal()
+        # RL Params
+        self.alpha = alpha
+        self.gamma_rl = gamma_rl
+        self.epsilon = epsilon
 
-        expansions_log = []
-        reward_log = []
-        step_log = []
+        # For logging results
+        self.expansions_logs = []
+        self.episode_rewards = []
+        self.episode_steps = []
+
+    def run_bfs_and_rl(self, episodes, max_steps_per_episode, batch_size):
+        """
+        Each episode:
+          1) pick random perimeter cell as start
+          2) run BFS partial expansions
+          3) BFS -> Q init
+          4) run RL sub-episode (up to max_steps_per_episode steps or until done)
+        """
+        # BFS init from goal
+        self.bfs_mgr.init_bfs_from_goal()
+
+        # Let BFS expand some initially
+        expansions = self.bfs_mgr.expand_next_batch_reverse(batch_size=50)  # big initial chunk
+        self.logger.info(f"Initial BFS expansions: {expansions}")
+
+        # Gather perimeter openings for random start
+        perimeter_openings = self.get_perimeter_cells()
+        _, goal = self.env.get_start_and_goal()
 
         for ep in range(episodes):
-            start, goal = env.get_start_and_goal()
+            # pick random start
+            if perimeter_openings:
+                start = random.choice(perimeter_openings)
+            else:
+                # fallback to default environment start
+                start, _ = self.env.get_start_and_goal()
+
             if not goal:
-                print("[run_bfs_and_rl] No valid goal, skipping RL episodes.")
+                self.logger.warning("[run_bfs_and_rl] No valid goal, skipping RL episodes.")
                 break
 
-            total_episode_reward = 0
-            steps_in_episode = 0
-            done = False
             state = start
+            done = False
+            ep_reward = 0
+            steps = 0
 
-            for it in range(iters_per_episode):
-                if not bfs_mgr.is_finished_goal():
-                    expanded = bfs_mgr.expand_next_batch_reverse(batch_size=batch_size)
-                    expansions_log.append(expanded)
+            while not done and steps < max_steps_per_episode:
+                # BFS partial expansions
+                if not self.bfs_mgr.is_finished_goal():
+                    expansions = self.bfs_mgr.expand_next_batch_reverse(batch_size=batch_size)
 
-                    # BFS -> Q init, using MIN-MAX
-                    AlgorithmHelpers.bfs_init_qvalue(q_table, bfs_mgr.dist_goal, r_goal=10, gamma=0.9)
+                    # BFS -> Q
+                    AlgorithmHelpers.bfs_init_qvalue_minmax_discount(self.q_table, self.bfs_mgr.dist_goal)
 
-                if not done:
-                    steps_in_episode += 1
+                # RL step
+                steps += 1
+                action = self.select_action(state)
+                next_state, r, done = self.env.step(state, action)
 
-                    # Epsilon-greedy
-                    if np.random.rand() < epsilon:
-                        action = np.random.randint(4)
-                    else:
-                        action = np.argmax(q_table[state[0], state[1]])
+                # Q-learning update
+                old_q = self.q_table[state[0], state[1], action]
+                next_max = np.max(self.q_table[next_state[0], next_state[1]])
+                new_q = old_q + self.alpha*(r + self.gamma_rl*next_max - old_q)
+                self.q_table[state[0], state[1], action] = new_q
 
-                    next_state, r, done = env.step(state, action)
+                state = next_state
+                ep_reward += r
 
-                    # Standard Q-learning update
-                    old_q = q_table[state[0], state[1], action]
-                    next_max = np.max(q_table[next_state[0], next_state[1]])
-                    new_q = old_q + alpha * (r + gamma_rl * next_max - old_q)
-                    q_table[state[0], state[1], action] = new_q
+            self.episode_rewards.append(ep_reward)
+            self.episode_steps.append(steps)
 
-                    state = next_state
-                    total_episode_reward += r
-
-                    if done:
-                        break
-
-            reward_log.append(total_episode_reward)
-            step_log.append(steps_in_episode)
-
+            # Logging
             if ep % 10 == 0:
-                min_dist = bfs_mgr.min_distance()
-                max_dist = bfs_mgr.max_distance()
-                frontier_size = len(bfs_mgr.frontier_goal)
-                visited_ct = len(bfs_mgr.dist_goal)
-                print(f"Episode {ep}: BFS(frontier={frontier_size}, visited={visited_ct}, distRange=({min_dist},{max_dist})) => RL Reward={total_episode_reward}, steps={steps_in_episode}")
+                distMin = self.bfs_mgr.min_distance()
+                distMax = self.bfs_mgr.max_distance()
+                frontier_sz = len(self.bfs_mgr.frontier)
+                visited_ct = len(self.bfs_mgr.dist_goal)
+                self.logger.info(f"Episode {ep}: BFS(frontier={frontier_sz}, visited={visited_ct}, distRange=({distMin},{distMax})) => RL Reward={ep_reward}, steps={steps}")
 
-        return q_table, expansions_log, reward_log, step_log
+        return self.q_table, self.expansions_logs, self.episode_rewards, self.episode_steps
+
+    def select_action(self, state):
+        """Epsilon-greedy with the Q-table."""
+        if np.random.rand() < self.epsilon:
+            return np.random.randint(4)
+        else:
+            return np.argmax(self.q_table[state[0], state[1]])
+
+    def get_perimeter_cells(self):
+        """
+        Return a list of passable perimeter cells to randomize start.
+        """
+        perimeter = []
+        for x in range(self.env.width):
+            if self.env.is_valid_state((0, x)):
+                perimeter.append((0, x))
+            if self.env.is_valid_state((self.env.height-1, x)):
+                perimeter.append((self.env.height-1, x))
+        for y in range(self.env.height):
+            if self.env.is_valid_state((y, 0)):
+                perimeter.append((y, 0))
+            if self.env.is_valid_state((y, self.env.width-1)):
+                perimeter.append((y, self.env.width-1))
+        return perimeter

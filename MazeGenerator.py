@@ -61,7 +61,7 @@ class MazeGenerator:
 
         neighbours_mask = self.generate_mask()
 
-        for (y, x) in unfilled_cells:
+        for (x, y) in unfilled_cells:
             # If blocking a cell kills connectivity, revert
             if np.sum(neighbours_mask * maze[y - 1:y + 2, x - 1:x + 2]) > 2:
                 continue
