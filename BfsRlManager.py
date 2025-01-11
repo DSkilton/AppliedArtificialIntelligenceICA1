@@ -6,7 +6,7 @@ from AlgorithmHelpers import AlgorithmHelpers
 
 class BfandRlMananger:
 
-    def __init__(self, env, bfs_mgr, q_table, alpha=0.1, gamma_rl=0.9, epsilon=0.1):
+    def __init__(self, env, bfs_mgr, q_table, alpha=0.1, gamma_rl=0.9, epsilon=0.1, beta=0.5):
         """
         env: MazeEnvironment
         bfs_mgr: BFSManagerReverse
@@ -21,6 +21,7 @@ class BfandRlMananger:
         self.alpha = alpha
         self.gamma_rl = gamma_rl
         self.epsilon = epsilon
+        self.beta = beta
 
         # For logging results
         self.expansions_logs = []
@@ -76,14 +77,16 @@ class BfandRlMananger:
                 action = self.select_action(state)
                 next_state, r, done = self.env.step(state, action)
 
-                # Q-learning update
-                old_q = self.q_table[state[0], state[1], action]
+                # Weighted Q-value update with BFS influence
+                bfs_value = self.bfs_mgr.dist_goal.get(state, 0)  # Default to 0 if no BFS value
+                current_value = self.q_table[state[0], state[1], action]
                 next_max = np.max(self.q_table[next_state[0], next_state[1]])
-                new_q = old_q + self.alpha*(r + self.gamma_rl*next_max - old_q)
-                self.q_table[state[0], state[1], action] = new_q
+                rl_update = self.alpha * (r + self.gamma_rl * next_max - current_value)
+                self.q_table[state[0], state[1], action] = (1 - self.beta) * (current_value + rl_update) + self.beta * bfs_value
 
                 state = next_state
                 ep_reward += r
+                self.beta = max(0.1, self.beta * 0.99) # Decay BFS influence 
 
             self.episode_rewards.append(ep_reward)
             self.episode_steps.append(steps)

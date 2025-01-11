@@ -3,7 +3,7 @@ import numpy as np
 from MazeGenerator import MazeGenerator
 from MazeEnvironment import MazeEnvironment
 from MazeSolver import MazeSolver
-from MazeVisualiser import MazeVisualizer
+from MazeVisualiser import MazeVisualiser
 
 from Persistence import QTablePersistence
 
@@ -18,7 +18,8 @@ def main():
     env, maze_array, generator = create_maze_and_env(height=20, width=20, openings=5)
 
     bfs_mgr = BfsManager(env)
-    q_table = np.zeros((env.height, env.width, 4), dtype=float)
+    q_table = np.zeros((env.height, env.width, 4)) # standard Q-Table initialisation
+    # np.zeros((env.height, env.width, 4), dtype=float)
 
     manager = BfandRlMananger(env, bfs_mgr, q_table)
     final_q, expansions_log, reward_log, step_log = manager.run_bfs_and_rl(
@@ -32,34 +33,34 @@ def main():
     logging.info(f"Episode Rewards: {reward_log}")
     logging.info(f"Episode Steps: {step_log}")
 
-    # MazeSolver, MazeVisualizer
+    # MazeSolver, MazeVisualiser
     solver = MazeSolver(env)
-    visualizer = MazeVisualizer(maze_array)
+    visualiser = MazeVisualiser(maze_array)
 
     start, goal = env.get_start_and_goal()
     if start and goal:
-        visualizer.visualize_agent_run(final_q, start, goal, lambda s,a: env.step(s,a)[0])
+        visualiser.visualise_agent_run(final_q, start, goal, lambda s,a: env.step(s,a)[0])
     else:
-        logging.info("No valid start/goal to visualize final path.")
+        logging.info("No valid start/goal to visualise final path.")
 
     # Load or create Q-learning / SARSA tables
     # q_learning_table, sarsa_table = load_qtables(env, generator)
 
     # Solve Maze with A*
-    run_astar_and_visualize(env, solver, visualizer)
+    # run_astar_and_visualise(env, solver, visualiser)
 
     # Solve with Q-learning
-    run_qlearning_and_visualize(env, solver, visualizer)
+    run_qlearning_and_visualise(env, solver, visualiser)
 
     # Solve with SARSA
-    run_sarsa_and_visualize(env, solver, visualizer)
+    run_sarsa_and_visualise(env, solver, visualiser)
 
-    # Visualize BFS perimeter
-    visualize_boundary_bfs(solver, visualizer)
+    # Visualise BFS perimeter
+    visualise_boundary_bfs(solver, visualiser)
 
     perimeter_visited, boundary_openings = solver.perimeter_bfs()
-    MazeVisualizer.visualize_bfs_paths_from_openings(solver, visualizer, boundary_openings)
-    MazeVisualizer.visualize_agent_run_multiple_openings(final_q, boundary_openings, env, visualizer)    
+    MazeVisualiser.visualise_bfs_paths_from_openings(solver, visualiser, boundary_openings)
+    MazeVisualiser.visualise_agent_run_multiple_openings(final_q, boundary_openings, env, visualiser)    
 
     start, _ = env.get_start_and_goal()
     state = start
@@ -82,9 +83,10 @@ def main():
     # BFS visited cells
     bfs_visited = list(bfs_mgr.dist_goal.keys())  # all cells BFS discovered
 
-    # 6) Visualize BFS visited + agent path
-    visualizer = MazeVisualizer(maze_array)
-    visualizer.visualise_bfs_and_agent_path(bfs_visited, agent_states)
+    # Visualise BFS visited + agent path
+    visualiser = MazeVisualiser(maze_array)
+    visualiser.visualise_bfs_and_agent_path(bfs_visited, agent_states)
+    visualiser.visualise_bfs_path(bfs_visited)
 
 def create_maze_and_env(height=20, width=20, openings=5):
     """
@@ -102,7 +104,7 @@ def run_bfs_rl_manager(env):
     Returns final_q, expansions_log, reward_log, step_log
     """
     bfs_mgr = BfsManager(env)
-    q_table = np.zeros((env.height, env.width, 4), dtype=float)
+    q_table = np.zeros((self.height, self.width, 4))
 
     final_q, expansions_log, reward_log, step_log = bfs_mgr.run_bfs_and_rl(
         env,
@@ -139,65 +141,65 @@ def load_qtables(env, generator):
         sarsa_table = np.zeros((generator.height, generator.width, 4))
     return q_learning_table, sarsa_table
 
-def run_astar_and_visualize(env, solver, visualizer):
+def run_astar_and_visualise(env, solver, visualiser):
     """
-    Solve the maze with A* and visualize the path.
+    Solve the maze with A* and visualise the path.
     """
     a_star_rewards, a_star_steps, came_from = solver.solve_astar()
-    visualizer.show_maze("Original Maze")
+    visualiser.show_maze("Original Maze")
     start, goal = env.get_start_and_goal()
-    visualizer.visualize_path(came_from, start, goal)
+    visualiser.visualise_path(came_from, start, goal)
 
-def run_qlearning_and_visualize(env, solver, visualizer):
+def run_qlearning_and_visualise(env, solver, visualiser):
     """
-    Solve using Q-learning, log results, and visualize the agent.
+    Solve using Q-learning, log results, and visualise the agent.
     """
-    print("\n--- Starting Q-Learning (100,000 episodes) ---")
+    print("\n--- Starting Q-Learning (50,000 episodes) ---")
     q_rewards, q_steps, q_table = solver.solve_qlearning(
-        episodes=100000, log_interval=10000, save_filename=Q_LEARNING_FILE
+        episodes=50000, log_interval=10000, save_filename=Q_LEARNING_FILE
     )
-    visualizer.plot_rewards_and_steps(q_rewards, q_steps, Q_LEARNING)
+    visualiser.plot_rewards_and_steps(q_rewards, q_steps, Q_LEARNING)
 
     start, goal = env.get_start_and_goal()
-    visualizer.visualize_agent_run(
+    visualiser.visualise_agent_run(
         q_table,
         start,
         goal,
         lambda s, a: env.step(s, a)[0]
     )
 
-def run_sarsa_and_visualize(env, solver, visualizer):
+def run_sarsa_and_visualise(env, solver, visualiser):
     """
-    Solve using SARSA, log results, and visualize.
+    Solve using SARSA, log results, and visualise.
     """
-    print("\n--- Starting SARSA (100,000 episodes) ---")
+    print("\n--- Starting SARSA (50,000 episodes) ---")
     sarsa_rewards, sarsa_steps, sarsa_table = solver.solve_sarsa(
-        episodes=100000, log_interval=10000, save_filename=SARSA_FILE
+        episodes=50000, log_interval=10000, save_filename=SARSA_FILE
     )
-    visualizer.plot_rewards_and_steps(sarsa_rewards, sarsa_steps, SARSA)
+    visualiser.plot_rewards_and_steps(sarsa_rewards, sarsa_steps, SARSA)
 
     start, goal = env.get_start_and_goal()
-    visualizer.visualize_agent_run(
+    visualiser.visualise_agent_run(
         sarsa_table,
         start,
         goal,
         lambda s, a: env.step(s, a)[0]
     )
 
-def visualize_boundary_bfs(solver, visualizer):
+def visualise_boundary_bfs(solver, visualiser):
     """
-    Run the perimeter BFS in MazeSolver, log it, visualize results.
+    Run the perimeter BFS in MazeSolver, log it, visualise results.
     """
     perimeter_visited, boundary_openings = solver.perimeter_bfs()
 
     logging.info(f"Visited set: {perimeter_visited}")
     logging.info(f"Openings: {boundary_openings}")
 
-    # If you want to visualize *only* perimeter-connected cells:
-    visualizer.visualise_perimeter_cells(perimeter_visited)
+    # Visualise *only* perimeter-connected cells:
+    visualiser.visualise_perimeter_cells(perimeter_visited)
 
-    # If you also want to highlight only the boundary-edge openings:
-    visualizer.visualise_perimeter_cells(boundary_openings)
+    # Highlight only the boundary-edge openings:
+    visualiser.visualise_perimeter_cells(boundary_openings)
 
 if __name__ == "__main__":
 

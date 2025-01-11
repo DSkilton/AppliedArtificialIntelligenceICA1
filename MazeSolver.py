@@ -108,14 +108,18 @@ class MazeSolver:
         return all_rewards, all_steps, q_table
 
     # ------------ SARSA ------------ #
-    def solve_sarsa(self, episodes=500, log_interval=0, save_filename=None):
+    def solve_sarsa(self, episodes=500, log_interval=0, save_filename=None): 
         """
         log_interval: if > 0, print logs every 'log_interval' episodes
         """
         q_table = np.zeros((self.height, self.width, 4))
-        alpha = 0.1
-        gamma = 0.9
-        epsilon = 0.1
+        policy = np.ones((self.height, self.width, 4)) * 0.25  # Initial equal probabilities for all actions
+        alpha = 0.1  # Learning rate
+        gamma = 0.8  # Discount factor
+        epsilon = 1.0  # Exploration rate
+        min_epsilon = 0.1
+        decay_rate = 0.001
+        num_actions = 4
 
         start, goal = self.env.get_start_and_goal()
         if not start or not goal:
@@ -127,10 +131,7 @@ class MazeSolver:
 
         for ep in range(episodes):
             state = start
-            if np.random.rand() < epsilon:
-                action = np.random.randint(4)
-            else:
-                action = np.argmax(q_table[state[0], state[1]])
+            action = np.random.choice(num_actions, p=policy[state[0], state[1]])  # Choose action based on policy
 
             episode_reward = 0
             step_count = 0
@@ -140,31 +141,46 @@ class MazeSolver:
                 step_count += 1
                 next_state, r, done = self.env.step(state, action)
 
-                # pick next action
-                if np.random.rand() < epsilon:
-                    next_action = np.random.randint(4)
-                else:
-                    next_action = np.argmax(q_table[next_state[0], next_state[1]])
+                # Choose next action based on policy
+                next_action = np.random.choice(num_actions, p=policy[next_state[0], next_state[1]])
 
+                # Compute Expected SARSA value
+                expected_value = sum(
+                    policy[next_state[0], next_state[1], a] * q_table[next_state[0], next_state[1], a]
+                    for a in range(num_actions)
+                )
+
+                # Update Q-value using Expected SARSA
                 old_q = q_table[state[0], state[1], action]
-                next_q = q_table[next_state[0], next_state[1], next_action]
-                new_q = old_q + alpha * (r + gamma * next_q - old_q)
+                new_q = old_q + alpha * (r + gamma * expected_value - old_q)
                 q_table[state[0], state[1], action] = new_q
 
+                # Update policy dynamically for current state
+                best_action = np.argmax(q_table[state[0], state[1]])
+                for a in range(num_actions):
+                    if a == best_action:
+                        policy[state[0], state[1], a] = 1 - epsilon + (epsilon / num_actions)
+                    else:
+                        policy[state[0], state[1], a] = epsilon / num_actions
+
+                # Move to the next state and action
                 state = next_state
                 action = next_action
                 episode_reward += r
 
-                if step_count > 5000:
+                if step_count > 5000:  # Prevent infinite loops in training
                     break
 
             all_rewards.append(episode_reward)
             all_steps.append(step_count)
 
-            # Log
-            if log_interval > 0 and (ep+1) % log_interval == 0:
+            # Log progress
+            if log_interval > 0 and (ep + 1) % log_interval == 0:
                 recent_avg = np.mean(all_rewards[-log_interval:])
-                print(f"[SARSA] Ep {ep+1}, AvgReward(last {log_interval})={recent_avg:.2f}")
+                print(f"[Expected SARSA] Ep {ep+1}, AvgReward(last {log_interval})={recent_avg:.2f}")
+
+            # Decay epsilon
+            epsilon = max(min_epsilon, epsilon * np.exp(-decay_rate * ep))
 
             if save_filename:
                 QTablePersistence.save(q_table, save_filename)

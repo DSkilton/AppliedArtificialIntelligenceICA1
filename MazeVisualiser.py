@@ -4,7 +4,7 @@ import matplotlib.patches as mpatches
 import matplotlib as mpl
 import numpy as np
 
-class MazeVisualizer:
+class MazeVisualiser:
 
     def __init__(self, maze):
         self.logger = logging.getLogger(__name__)
@@ -27,8 +27,8 @@ class MazeVisualizer:
         plt.title(title)
         plt.show()
 
-    def visualize_path(self, came_from, start, goal):
-        self.logger.info(f"[visualize_path] -> came_from: {came_from}")
+    def visualise_path(self, came_from, start, goal):
+        self.logger.info(f"[visualise_path] -> came_from: {came_from}")
         maze_copy = np.copy(self.maze)
         current = goal
         while current and current != start:
@@ -69,7 +69,7 @@ class MazeVisualizer:
         out_file1 = os.path.join(out_dir, f"{algorithm_name}_rewards.png")
         plt.savefig(out_file1, dpi=150)
 
-    def visualize_agent_run(self, q_table, start, goal, get_next_state_func):
+    def visualise_agent_run(self, q_table, start, goal, get_next_state_func):
         maze_copy = np.copy(self.maze)
 
         plt.ion()
@@ -102,7 +102,7 @@ class MazeVisualizer:
         plt.ioff()
         plt.show()
 
-    # If you want to visualize BFS perimeter cells
+    # If you want to visualise BFS perimeter cells
     def visualise_perimeter_cells(self, perimeter_cells):
         """
         Color any perimeter BFS visited cells in '3' and show them.
@@ -117,19 +117,19 @@ class MazeVisualizer:
         plt.show()
 
     @staticmethod
-    def visualize_agent_run_multiple_openings(q_table, openings, env, visualizer):
+    def visualise_agent_run_multiple_openings(q_table, openings, env, visualiser):
         """
         Using the final Q-table, run the agent from each 'opening' to the environment's goal,
-        calling 'visualizer.visualize_agent_run' for each route.
+        calling 'visualiser.visualise_agent_run' for each route.
         """
         _, goal = env.get_start_and_goal()
         if goal is None:
-            print("[visualize_agent_run_multiple_openings] No valid goal in environment.")
+            print("[visualise_agent_run_multiple_openings] No valid goal in environment.")
             return
 
         for open_cell in openings:
             print(f"** Visualizing agent from {open_cell} to {goal} **")
-            visualizer.visualize_agent_run(
+            visualiser.visualise_agent_run(
                 q_table,
                 open_cell,
                 goal,
@@ -137,24 +137,24 @@ class MazeVisualizer:
             )
 
     @staticmethod
-    def visualize_bfs_paths_from_openings(solver, visualizer, openings):
+    def visualise_bfs_paths_from_openings(solver, visualiser, openings):
         """
         For each opening in 'openings', run BFS from that opening to the real goal,
-        and visualize the resulting path if found.
+        and visualise the resulting path if found.
         """
         env = solver.env
         _, goal = env.get_start_and_goal()
         if goal is None:
-            print("[visualize_bfs_paths_from_openings] No valid goal found in MazeEnvironment.")
+            print("[visualise_bfs_paths_from_openings] No valid goal found in MazeEnvironment.")
             return
 
-        print(f"[visualize_bfs_paths_from_openings] We have {len(openings)} openings to try.")
+        print(f"[visualise_bfs_paths_from_openings] We have {len(openings)} openings to try.")
         for open_cell in openings:
             print(f"--- BFS from opening {open_cell} to {goal} ---")
             came_from = solver.solve_bfs_custom(open_cell, goal)  
             if came_from is not None:
                 # Visualize the path from open_cell to goal
-                visualizer.visualize_path(came_from, open_cell, goal)
+                visualiser.visualise_path(came_from, open_cell, goal)
             else:
                 print(f"No BFS path from {open_cell} to {goal}")
 
@@ -175,4 +175,18 @@ class MazeVisualizer:
         plt.figure(figsize=(7,7))
         plt.imshow(self.palette[maze_copy])
         plt.title("BFS visited (color=4) + Agent path (color=3)")
+        plt.show()
+
+    def visualise_bfs_path(self, bfs_visited):
+        """
+        Visualize BFS traversal paths for educational purposes.
+        :param bfs_visited: List of cells visited by BFS.
+        """
+        maze_copy = np.copy(self.maze)
+        for cell in bfs_visited:
+            maze_copy[cell] = 4  # Color code for BFS visited cells
+
+        plt.figure(figsize=(7, 7))
+        plt.imshow(self.palette[maze_copy])
+        plt.title("BFS Traversal")
         plt.show()
